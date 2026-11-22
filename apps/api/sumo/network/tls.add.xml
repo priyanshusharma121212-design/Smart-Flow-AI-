@@ -1,0 +1,10 @@
+﻿<additional>
+    <tlLogic id="J0" type="static" programID="smartflow_fixed" offset="0">
+        <phase duration="30" state="GGGGrrrr"/>
+        <phase duration="3" state="yyyyrrrr"/>
+        <phase duration="1" state="rrrrrrrr"/>
+        <phase duration="30" state="rrrrGGGG"/>
+        <phase duration="3" state="rrrryyyy"/>
+        <phase duration="1" state="rrrrrrrr"/>
+    </tlLogic>
+</additional>

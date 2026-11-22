@@ -1,0 +1,54 @@
+﻿<routes>
+    <vType id="car" accel="2.6" decel="4.5" sigma="0.5"
+           length="5" maxSpeed="13.89" guiShape="passenger"
+           vClass="passenger"/>
+
+    <vType id="bike" accel="3.0" decel="4.5" sigma="0.5"
+           length="2" maxSpeed="13.89" guiShape="motorcycle"
+           vClass="motorcycle"/>
+
+    <vType id="bus" accel="1.2" decel="4.0" sigma="0.5"
+           length="12" maxSpeed="11.11" guiShape="bus"
+           vClass="bus"/>
+
+    <vType id="truck" accel="1.0" decel="4.0" sigma="0.5"
+           length="9" maxSpeed="11.11" guiShape="truck"
+           vClass="truck"/>
+
+    <vType id="emergency" accel="3.0" decel="5.0" sigma="0.2"
+           length="5" maxSpeed="16.67" guiShape="emergency"
+           vClass="emergency" color="1,0,0"/>
+
+    <route id="north_south" edges="north_in south_out"/>
+    <route id="south_north" edges="south_in north_out"/>
+    <route id="east_west" edges="east_in west_out"/>
+    <route id="west_east" edges="west_in east_out"/>
+
+    <!-- Regular traffic from all four directions -->
+    <flow id="north_cars" type="car" route="north_south"
+          begin="0" end="300" period="10"/>
+    <flow id="south_cars" type="car" route="south_north"
+          begin="0" end="300" period="10"/>
+    <flow id="east_cars" type="car" route="east_west"
+          begin="0" end="300" period="10"/>
+    <flow id="west_cars" type="car" route="west_east"
+          begin="0" end="300" period="10"/>
+
+    <!-- Additional bikes -->
+    <flow id="north_bikes" type="bike" route="north_south"
+          begin="5" end="300" period="25"/>
+    <flow id="east_bikes" type="bike" route="east_west"
+          begin="5" end="300" period="25"/>
+
+    <!-- Buses and trucks -->
+    <vehicle id="bus_1" type="bus" route="north_south" depart="15"/>
+    <vehicle id="truck_1" type="truck" route="south_north" depart="25"/>
+    <vehicle id="bus_2" type="bus" route="east_west" depart="45"/>
+    <vehicle id="truck_2" type="truck" route="west_east" depart="65"/>
+
+    <!-- Emergency vehicles for later priority-control testing -->
+    <vehicle id="ambulance_1" type="emergency"
+             route="north_south" depart="90"/>
+    <vehicle id="firetruck_1" type="emergency"
+             route="east_west" depart="150"/>
+</routes>
