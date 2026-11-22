@@ -14,7 +14,7 @@ import { demoTrafficSample } from '../data/demo-traffic'
 import { defaultUserPreferences, loadUserPreferences, saveUserPreferences, type UserPreferences } from '../services/preferences'
 import { api } from '../services/api'
 import type { ReactNode } from 'react'
-import type { DatabaseTableKey, DatabaseTableResponse, TrafficFlowItem } from '../types/api'
+import type { DatabaseTableKey, DatabaseTableResponse, SimulationVehicle, TrafficFlowItem } from '../types/api'
 import type { ApiResult } from '../types/common'
 
 const LazyChartPanel = lazy(() => import('../components/charts/ChartPanel').then((module) => ({ default: module.ChartPanel })))
@@ -221,57 +221,183 @@ export function DashboardPage() {
   </>
 }
 
-function IntersectionVisual({ phase, emergency }: { phase: number; emergency: boolean }) {
+function IntersectionVisual({
+  phase,
+  emergency,
+  vehicles,
+}: {
+  phase: number
+  emergency: boolean
+  vehicles: SimulationVehicle[]
+}) {
   const verticalGreen = phase % 2 === 0
-  const counts = demoTrafficSample.approaches.map((item) => item.vehicleCount)
+
   return <div className={`intersection-visual ${emergency ? 'emergency-mode' : ''}`}>
-    <div className="intersection-road horizontal"><div className="lane-mark" /></div><div className="intersection-road vertical"><div className="lane-mark" /></div>
-    <div className="center-island"><div className="intersection-signal"><i className={!verticalGreen ? 'go' : ''} /><i className={phase === 1 ? 'caution' : ''} /><i className={verticalGreen ? 'go' : ''} /></div><span>SAMPLE JUNCTION</span></div>
-    {(['north', 'south', 'east', 'west'] as const).map((direction, i) => <div className={`vehicle-lane ${direction}`} key={direction}>
-      <div className="lane-label">{direction.toUpperCase()} <b>{counts[i]}</b></div>
-      <div className="vehicles">{Array.from({ length: i === 0 ? 4 : i === 1 ? 2 : 3 }, (_, n) => {
-        const vehicle = emergency && i === 0 && n === 2 ? 'Ambulance' : emergency && i === 0 && n === 3 ? 'Fire engine' : ['Bus', 'Motorcycle', 'Truck', 'Car'][n]
-        const VehicleIcon = vehicle === 'Ambulance' ? Ambulance : vehicle === 'Fire engine' ? Siren : vehicle === 'Bus' ? Bus : vehicle === 'Motorcycle' ? Bike : vehicle === 'Truck' ? Truck : CarFront
-        return <span className={`demo-vehicle vehicle-${(n + i) % 4}`} key={n} title={vehicle}><VehicleIcon size={17} /></span>
-      })}</div>
-    </div>)}
-    <div className={`direction-signal north-signal ${verticalGreen ? 'signal-green' : 'signal-red'}`} /><div className={`direction-signal east-signal ${verticalGreen ? 'signal-red' : 'signal-green'}`} />
-    <div className="signal-legend"><span><i className="green-dot" /> Green phase</span><span><i className="red-dot" /> Stopped</span></div>
+    <div className="intersection-road horizontal"><div className="lane-mark" /></div>
+    <div className="intersection-road vertical"><div className="lane-mark" /></div>
+
+    <div className="live-vehicle-layer">
+      {vehicles.map((vehicle) => {
+        const kind = `${vehicle.type} ${vehicle.id}`.toLowerCase()
+        const VehicleIcon = kind.includes('ambulance') ? Ambulance
+          : kind.includes('fire') ? Siren
+          : kind.includes('bus') ? Bus
+          : kind.includes('bike') ? Bike
+          : kind.includes('truck') ? Truck
+          : CarFront
+
+        const left = Math.max(0, Math.min(100, (vehicle.x / 600) * 100))
+        const top = Math.max(0, Math.min(100, ((600 - vehicle.y) / 600) * 100))
+
+        return <span
+          className="live-vehicle"
+          key={vehicle.id}
+          title={`${vehicle.id} ? ${vehicle.type} ? ${vehicle.speed.toFixed(1)} m/s`}
+          style={{
+            left: `${left}%`,
+            top: `${top}%`,
+            transform: `translate(-50%, -50%) rotate(${vehicle.angle}deg)`,
+          }}
+        >
+          <VehicleIcon size={16} />
+        </span>
+      })}
+    </div>
+
+    <div className="center-island">
+      <div className="intersection-signal">
+        <i className={!verticalGreen ? 'go' : ''} />
+        <i className={phase === 1 ? 'caution' : ''} />
+        <i className={verticalGreen ? 'go' : ''} />
+      </div>
+      <span>JUNCTION J0</span>
+    </div>
+
+    <div className={`direction-signal north-signal ${verticalGreen ? 'signal-green' : 'signal-red'}`} />
+    <div className={`direction-signal east-signal ${verticalGreen ? 'signal-red' : 'signal-green'}`} />
+
+    <div className="signal-legend">
+      <span><i className="green-dot" /> Green phase</span>
+      <span><i className="red-dot" /> Stopped</span>
+      <span className="live-count">{vehicles.length} live vehicles</span>
+    </div>
+
+    {vehicles.length === 0 && (
+      <div className="no-live-vehicles">
+        Start the SUMO simulation to see live vehicles
+      </div>
+    )}
   </div>
 }
-
 export function SimulationPage() {
-  const { status, setStatus } = useSimulation()
-  const [scenario, setScenario] = useState('Normal Traffic')
-  const [controller, setController] = useState('Adaptive AI')
-  const [phase, setPhase] = useState(0)
-  const [seconds, setSeconds] = useState(0)
-  const [emergency, setEmergency] = useState(false)
-  useEffect(() => {
-    if (status !== 'Running') return
-    const timer = window.setInterval(() => {
-      setSeconds((value) => value + 1)
-      setPhase((value) => (value + 1) % 2)
-    }, 1000)
-    return () => window.clearInterval(timer)
-  }, [status])
-  const start = () => setStatus('Running')
-  const totalVehicles = demoTrafficSample.approaches.reduce((total, item) => total + item.vehicleCount, 0)
-  const averageWait = demoTrafficSample.approaches.reduce((total, item) => total + item.averageWait, 0) / demoTrafficSample.approaches.length
-  const emergencyActive = emergency || scenario === 'Emergency Traffic'
+  const {
+    status,
+    metrics,
+    vehicles,
+    loading,
+    error,
+    startSimulation,
+    pauseSimulation,
+    resumeSimulation,
+    stopSimulation,
+    resetSimulation,
+  } = useSimulation()
+
+  const metricValue = (name: string) => {
+    const value = metrics?.items.find((item) => item.name === name)?.value
+    if (Array.isArray(value)) return value.length ? value.join(', ') : 'None'
+    return value ?? '?'
+  }
+
+  const simulationTime = metrics?.items.find((item) => item.name === 'simulation_time')?.value
+  const elapsed = typeof simulationTime === 'number'
+    ? `${Math.floor(simulationTime / 60).toString().padStart(2, '0')}:${Math.floor(simulationTime % 60).toString().padStart(2, '0')}`
+    : '?'
+
   return <>
-    <PageHeader title="Traffic simulation prototype" description="Interactive frontend-only simulation; no backend engine is connected." action={<DemoLabel />} />
+    <PageHeader
+      title="SUMO traffic simulation"
+      description="Live traffic simulation powered by SUMO and TraCI. Current controller: fixed-time signals."
+      action={<Badge tone={status === 'Running' ? 'success' : status === 'Paused' ? 'warning' : 'neutral'}>{status}</Badge>}
+    />
+
     <div className="simulation-layout">
-      <Panel title="Four-way intersection visualization"><IntersectionVisual phase={phase} emergency={emergencyActive} /><div className="simulation-note"><CircleAlert size={16} /> Prototype only. Controls do not run SUMO or a backend simulation.</div><DemoLabel /></Panel>
+      <Panel title="Junction preview">
+        <IntersectionVisual phase={0} emergency={false} vehicles={vehicles?.vehicles ?? []} />
+        <div className="simulation-note">
+          <CircleAlert size={16} />
+          Vehicle positions are streamed from the running SUMO simulation through TraCI. This is a 2D coordinate preview; 3D rendering is not connected yet.
+        </div>
+      </Panel>
+
       <div className="simulation-aside">
-        <Panel title="Simulation controls">
-          <label className="field-label">Traffic scenario<select value={scenario} onChange={(e) => setScenario(e.target.value)}><option>Normal Traffic</option><option>Heavy Traffic</option><option>Emergency Traffic</option></select></label>
-          <label className="field-label">Signal controller<select value={controller} onChange={(e) => setController(e.target.value)}><option>Fixed-Time</option><option>Adaptive (prototype)</option></select></label>
-          <div className="control-buttons"><Button onClick={start} disabled={status === 'Running'}><Play size={15} />Start</Button><Button variant="secondary" onClick={() => setStatus('Paused')} disabled={status !== 'Running'}><Pause size={15} />Pause</Button><Button variant="secondary" onClick={() => setStatus('Running')} disabled={status !== 'Paused'}><Play size={15} />Resume</Button><Button variant="secondary" onClick={() => setStatus('Stopped')}><Square size={14} />Stop</Button><Button variant="ghost" onClick={() => { setStatus('Idle'); setSeconds(0); setPhase(0); setEmergency(false) }}><RotateCcw size={14} />Reset</Button></div>
-          <div className="simulation-readout"><span>Status</span><strong><StatusBadge>{status}</StatusBadge></strong><span>Elapsed prototype time</span><strong>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</strong><span>Signal phase</span><strong>{phase % 2 === 0 ? 'North / South green' : 'East / West green'}</strong><span>Selected controller</span><strong>{controller}</strong></div>
-          <Button variant="secondary" className="full-button" onClick={() => { if (emergencyActive) { setEmergency(false); setScenario('Normal Traffic') } else { setEmergency(true); setScenario('Emergency Traffic') } }}><Siren size={15} />{emergencyActive ? 'Clear emergency preview' : 'Preview emergency scenario'}</Button>
+        <Panel title="SUMO simulation controls">
+          <label className="field-label">
+            Traffic scenario
+            <select value="normal" disabled>
+              <option value="normal">Normal Traffic</option>
+              <option value="heavy" disabled>Heavy Traffic ? coming later</option>
+              <option value="emergency" disabled>Emergency Traffic ? coming later</option>
+            </select>
+          </label>
+
+          <label className="field-label">
+            Signal controller
+            <select value="fixed_time" disabled>
+              <option value="fixed_time">Fixed-Time (available)</option>
+              <option value="adaptive" disabled>Adaptive AI ? coming later</option>
+            </select>
+          </label>
+
+          <div className="control-buttons">
+            <Button onClick={() => void startSimulation('normal', 'fixed_time')} disabled={loading || status === 'Running' || status === 'Paused'}>
+              <Play size={15} />Start
+            </Button>
+            <Button variant="secondary" onClick={() => void pauseSimulation()} disabled={status !== 'Running'}>
+              <Pause size={15} />Pause
+            </Button>
+            <Button variant="secondary" onClick={() => void resumeSimulation()} disabled={status !== 'Paused'}>
+              <Play size={15} />Resume
+            </Button>
+            <Button variant="secondary" onClick={() => void stopSimulation()} disabled={status !== 'Running' && status !== 'Paused'}>
+              <Square size={14} />Stop
+            </Button>
+            <Button variant="ghost" onClick={() => void resetSimulation()} disabled={loading}>
+              <RotateCcw size={14} />Restart
+            </Button>
+          </div>
+
+          <div className="simulation-readout">
+            <span>Backend status</span><strong><StatusBadge>{status}</StatusBadge></strong>
+            <span>SUMO simulation time</span><strong>{elapsed}</strong>
+            <span>Controller</span><strong>Fixed-Time</strong>
+            <span>Scenario</span><strong>Normal Traffic</strong>
+            <span>SUMO availability</span><strong>{metrics?.available ? 'Connected' : 'Waiting for simulation'}</strong>
+          </div>
+
+          {error && <div className="mini-callout" role="alert">{error}</div>}
+          {loading && <p className="mini-callout">Checking backend simulation status...</p>}
+          <div className="mini-callout">
+            Adaptive AI, heavy traffic scenarios and emergency vehicle priority are not implemented yet.
+          </div>
         </Panel>
-        <Panel title="Workbook sample snapshot"><div className="readout-grid"><span>Sample vehicles</span><strong>{totalVehicles}</strong><span>Average speed</span><strong>N/A</strong><span>Sample average wait</span><strong>{averageWait.toFixed(0)} sec</strong><span>Queue length</span><strong>N/A</strong></div><DemoLabel /></Panel>
+
+        <Panel title="Live SUMO / TraCI metrics">
+          {metrics?.available ? (
+            <div className="readout-grid">
+              <span>Simulation time (seconds)</span><strong>{metricValue('simulation_time')}</strong>
+              <span>Active vehicles</span><strong>{metricValue('active_vehicles')}</strong>
+              <span>Arrived vehicles</span><strong>{metricValue('arrived_vehicles')}</strong>
+              <span>Waiting vehicles</span><strong>{metricValue('waiting_vehicles')}</strong>
+              <span>Traffic light IDs</span><strong>{metricValue('traffic_lights')}</strong>
+            </div>
+          ) : (
+            <EmptyState
+              title="Live metrics not available"
+              description={metrics?.reason ?? 'Start a SUMO simulation to retrieve live vehicle and traffic-light metrics.'}
+            />
+          )}
+        </Panel>
       </div>
     </div>
   </>

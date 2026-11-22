@@ -41,3 +41,20 @@ class SimulationMetrics(BaseModel):
     available: bool
     items: list[dict[str, object]]
     reason: str
+
+class SimulationVehicle(BaseModel):
+    id: str
+    type: str
+    x: float
+    y: float
+    angle: float
+    speed: float
+    road_id: str
+    lane_id: str
+
+
+class SimulationVehicles(BaseModel):
+    available: bool
+    simulation_time: float
+    vehicles: list[SimulationVehicle]
+    reason: str

@@ -33,20 +33,61 @@ def test_dashboard_does_not_invent_live_metrics() -> None:
     assert data["intersection_count"] is None
 
 
-def test_simulation_lifecycle_is_explicitly_unavailable() -> None:
+def test_simulation_start_returns_accepted_when_service_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.simulation import SimulationState
+
+    async def fake_start(request):
+        assert request.scenario == "normal"
+        assert request.controller_mode == "fixed_time"
+        return SimulationState(
+            available=True,
+            status="running",
+            run_id="test-run",
+            scenario="normal",
+            controller_mode="fixed_time",
+            reason="Mock simulation started.",
+        )
+
+    monkeypatch.setattr(
+        "app.services.simulation_service.simulation_service.start",
+        fake_start,
+    )
+
     response = client.post("/api/simulation/start", json={"scenario": "normal"})
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
-    assert "SUMO" in response.json()["message"]
+    assert response.status_code == 202
+    assert response.json()["success"] is True
+    assert response.json()["data"]["status"] == "running"
 
+def test_simulation_start_accepts_omitted_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.simulation import SimulationState
 
-def test_simulation_start_accepts_omitted_body() -> None:
+    async def fake_start(request):
+        assert request.scenario == "normal"
+        assert request.controller_mode == "fixed_time"
+        return SimulationState(
+            available=True,
+            status="running",
+            run_id="test-default-run",
+            scenario="normal",
+            controller_mode="fixed_time",
+            reason="Mock simulation started with defaults.",
+        )
+
+    monkeypatch.setattr(
+        "app.services.simulation_service.simulation_service.start",
+        fake_start,
+    )
+
     response = client.post("/api/simulation/start")
 
-    assert response.status_code == 503
-    assert response.json()["success"] is False
-
+    assert response.status_code == 202
+    assert response.json()["success"] is True
+    assert response.json()["data"]["scenario"] == "normal"
 
 def test_simulation_request_rejects_unknown_fields() -> None:
     response = client.post("/api/simulation/start", json={"scenario": "normal", "extra": True})
@@ -92,7 +133,25 @@ def test_cors_allows_frontend_origins(origin: str) -> None:
     assert response.headers["access-control-allow-origin"] == origin
 
 
-def test_websocket_reports_inactive_state_without_fake_updates() -> None:
+def test_websocket_reports_inactive_state_without_fake_updates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.schemas.simulation import SimulationState
+
+    inactive_state = SimulationState(
+        available=False,
+        status="inactive",
+        run_id=None,
+        scenario=None,
+        controller_mode=None,
+        reason="No active simulation.",
+    )
+
+    monkeypatch.setattr(
+        "app.services.simulation_service.simulation_service.get_status",
+        lambda: inactive_state,
+    )
+
     run_id = str(uuid4())
 
     with client.websocket_connect(f"/ws/simulation/{run_id}") as websocket:
@@ -101,7 +160,6 @@ def test_websocket_reports_inactive_state_without_fake_updates() -> None:
     assert message["event"] == "simulation.status"
     assert message["data"]["available"] is False
     assert message["data"]["status"] == "inactive"
-
 
 def test_websocket_rejects_malformed_run_id() -> None:
     with pytest.raises(WebSocketDisconnect) as error:

@@ -14,9 +14,8 @@ export function TopNavbar({ onMenu }: { onMenu: () => void }) {
   const [backendError, setBackendError] = useState('')
   const [databaseConnected, setDatabaseConnected] = useState<boolean | null>(null)
   const [databaseError, setDatabaseError] = useState('')
-  const [backendSimulation, setBackendSimulation] = useState<string>('checking')
   const { theme, toggleTheme } = useTheme()
-  const { status } = useSimulation()
+  const { status, backendStatus } = useSimulation()
   const { configured, mfaStatus, user, signOut } = useAuth()
   const [profileError, setProfileError] = useState('')
   useEffect(() => {
@@ -77,14 +76,6 @@ export function TopNavbar({ onMenu }: { onMenu: () => void }) {
 
     void checkBackendHealth()
     void checkDatabaseHealth()
-    void api.simulationStatus().then((simulation) => {
-      if (!active) return
-      setBackendSimulation(
-        simulation.ok
-          ? simulation.data.available ? simulation.data.status : `${simulation.data.status} (not configured)`
-          : 'unavailable',
-      )
-    })
     return () => {
       active = false
       if (healthTimer) clearTimeout(healthTimer)
@@ -108,11 +99,19 @@ export function TopNavbar({ onMenu }: { onMenu: () => void }) {
     : databaseConnected === null
       ? 'Checking Neon database health.'
       : `Neon database health check failed: ${databaseError || 'Unknown error.'}`
-  const simulationStatusClass = backendSimulation === 'checking'
+  const simulationStatusClass = !backendStatus
     ? 'backend-checking'
-    : backendSimulation === 'unavailable' || backendSimulation.includes('not configured')
+    : !backendStatus.available
       ? 'status-informational'
-      : 'backend-connected'
+      : status === 'Running'
+        ? 'backend-connected'
+        : 'status-informational'
+
+  const simulationLabel = !backendStatus
+    ? 'checking'
+    : backendStatus.available
+      ? status.toLowerCase()
+      : 'not configured'
 
   return (
     <header className="topbar">
@@ -128,13 +127,9 @@ export function TopNavbar({ onMenu }: { onMenu: () => void }) {
           <span className="status-dot" />
           <span>Database: {databaseConnected ? 'connected' : databaseConnected === null ? 'checking' : 'disconnected'}</span>
         </div>
-        <div className={`connection-status ${simulationStatusClass}`} title="Backend simulation status is separate from the local prototype.">
+        <div className={`connection-status ${simulationStatusClass}`} title={backendStatus?.reason ?? 'Checking SUMO simulation status.'}>
           <span className="status-dot" />
-          <span>AI simulation: {backendSimulation}</span>
-        </div>
-        <div className="simulation-status">
-          <span>Prototype Mode</span>
-          <strong>{status}</strong>
+          <span>SUMO: {simulationLabel}</span>
         </div>
         <button className="icon-button" aria-label="Notifications" aria-expanded={openMenu === 'notifications'} onClick={() => setOpenMenu(openMenu === 'notifications' ? null : 'notifications')}>
           <Bell size={19} />

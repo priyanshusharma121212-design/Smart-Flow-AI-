@@ -1,28 +1,39 @@
-<<<<<<< HEAD
-node_modules/
+﻿# Environment variables and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+
+# Python
 .venv/
+venv/
 __pycache__/
 .pytest_cache/
 *.py[cod]
+
+# Node
+node_modules/
 dist/
-.env
-.env.local
-.env.*.local
+
+# Logs and OS
 *.log
 .DS_Store
-=======
-# Gradle files
+
+# IDE
+.idea/
+.vscode/
+
+# Android
 .gradle/
 build/
 .kotlin/
-
-# Local configuration file (sdk path, etc)
-local.properties
-
-# Log/OS Files
-*.log
-
-# Android Studio generated files and folders
+local.properties/
 captures/
 .externalNativeBuild/
 .cxx/
@@ -30,20 +41,11 @@ captures/
 *.apk
 output-metadata.json
 
-# IntelliJ
-*.iml
-.idea/
-misc.xml
-deploymentTargetDropDown.xml
-render.experimental.xml
+# Local backup
+smartflow-backup-before-sumo/
 
-# Keystore files
-*.jks
-*.keystore
+.gitignore.before-cleanup
 
-# Google Services (e.g. APIs or Firebase)
-google-services.json
-
-# Android Profiling
-*.hprof
->>>>>>> 0f8c935d11c3fbc395254afce985f248833c6ca8
+# Temporary backup files
+*.before-*
+simulation_service_before_traci_connection_fix.py

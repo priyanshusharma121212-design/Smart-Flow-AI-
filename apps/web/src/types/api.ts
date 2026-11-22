@@ -27,6 +27,17 @@ export type SimulationStatus = {
   reason: string
 }
 
+export type SimulationMetricItem = {
+  name: string
+  value: number | string | string[]
+}
+
+export type SimulationMetrics = {
+  available: boolean
+  items: SimulationMetricItem[]
+  reason: string
+}
+
 export type AvailableCollection<T> = {
   available: boolean
   items: T[]
@@ -154,3 +165,22 @@ export type AIStatus = {
   reason: string
 }
 export type AIDecision = Record<string, unknown>
+
+
+export type SimulationVehicle = {
+  id: string
+  type: string
+  x: number
+  y: number
+  angle: number
+  speed: number
+  road_id: string
+  lane_id: string
+}
+
+export type SimulationVehicles = {
+  available: boolean
+  simulation_time: number
+  vehicles: SimulationVehicle[]
+  reason: string
+}

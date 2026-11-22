@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     here_longitude: float = 75.7873
     here_radius_meters: int = 5000
     database_url: str = Field(default="", repr=False)
+    sumo_home: str = Field(default="", repr=False)
+    sumo_binary: str = Field(default="", repr=False)
+    sumo_config: str = Field(default="", repr=False)
 
     @property
     def cors_origins(self) -> list[str]:
